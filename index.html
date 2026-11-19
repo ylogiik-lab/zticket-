@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#101510"><title>Z TICKETS</title>
+<style>
+:root{--bg:#090c09;--panel:#171c17;--line:#303a30;--green:#a6ff35;--muted:#aab4a7;--white:#f5f7f2}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--white);font:15px system-ui,Arial,sans-serif}
+header{text-align:center;padding:20px 14px;border-bottom:1px solid var(--line)}header h1{margin:0;color:var(--green);letter-spacing:2px}header p{margin:5px 0 0;color:var(--muted);font-size:12px}
+main{max-width:900px;margin:auto;padding:14px;display:grid;gap:14px}.tabs,.actions{display:flex;gap:8px;flex-wrap:wrap}
+button{border:0;border-radius:10px;padding:12px 14px;background:var(--green);color:#101510;font-weight:800;cursor:pointer;flex:1}
+button.alt{background:#293229;color:white;border:1px solid var(--line)}button:disabled{opacity:.4}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:15px}h2{font-size:18px;margin:0 0 13px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.full{grid-column:1/-1}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}input{width:100%;padding:12px;border-radius:9px;border:1px solid var(--line);background:#0c100c;color:white;font:inherit}
+.ticket{margin-top:14px;background:white;color:#151515;border-radius:12px;padding:17px;text-align:center}.brand{font-size:12px;font-weight:900;letter-spacing:2px;color:#427900}.ticket h3{margin:5px 0}.folio{font-size:27px;font-weight:900;letter-spacing:2px}.meta{font-size:12px;color:#444;line-height:1.6}
+.codes{display:flex;gap:12px;justify-content:center;align-items:center;flex-wrap:wrap;margin:12px 0}#qrcode{min-width:150px;min-height:150px;display:grid;place-items:center}#barcode{max-width:100%;height:75px}
+.status,.result{background:#0c100c;border:1px solid var(--line);border-radius:9px;padding:10px;margin-top:10px;color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+#reader{width:100%;overflow:hidden;border-radius:10px;background:#050705}table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:9px 5px;border-bottom:1px solid var(--line)}th{color:var(--muted)}
+.note{font-size:12px;color:var(--muted);line-height:1.5}[hidden]{display:none!important}
+@media(max-width:520px){.grid{grid-template-columns:1fr}.full{grid-column:auto}}
+@media print{body{background:white;color:black}header,.tabs,.no-print,#formPanel,#historyPanel,#scanPanel{display:none!important}main{display:block;padding:0}.panel{border:0;padding:0}.ticket{max-width:380px;margin:auto;border:1px dashed #777}}
+</style></head>
+<body>
+<header><h1>Z TICKETS</h1><p>Boletos · QR · Código de barras · Validación local</p></header>
+<main>
+<nav class="tabs no-print"><button id="goCreate">CREAR BOLETO</button><button class="alt" id="goScan">ESCANEAR / VALIDAR</button><button class="alt" id="goHistory">HISTORIAL</button></nav>
+<section class="panel" id="formPanel">
+<h2>Datos del boleto</h2><div class="grid">
+<div class="full"><label>Evento / concepto</label><input id="event" value="EVENTO ESPECIAL"></div>
+<div><label>Nombre del titular</label><input id="holder" placeholder="Opcional"></div>
+<div><label>Fecha</label><input id="date" type="date"></div>
+<div><label>Lugar</label><input id="place" placeholder="Opcional"></div>
+<div><label>Tipo / sección</label><input id="type" value="GENERAL"></div>
+</div><div class="actions no-print" style="margin-top:12px"><button id="generate">GENERAR BOLETO</button><button class="alt" id="new">NUEVO FOLIO</button></div>
+<div class="ticket" id="ticket"><div class="brand">Z TICKETS</div><h3 id="outEvent">EVENTO ESPECIAL</h3><div class="meta" id="outMeta"></div><div class="folio" id="outFolio">ZT-000001</div><div class="meta" id="outHolder"></div><div class="codes"><div id="qrcode"></div><svg id="barcode"></svg></div><div class="meta">Presenta este boleto para validación</div></div>
+<div class="actions no-print" style="margin-top:12px"><button id="print">IMPRIMIR / GUARDAR PDF</button><button class="alt" id="export">EXPORTAR HISTORIAL JSON</button></div>
+<div class="status" id="genStatus">Los boletos se guardan únicamente en este dispositivo.</div>
+</section>
+<section class="panel" id="scanPanel" hidden><h2>Escanear y validar</h2>
+<p class="note">La cámara requiere HTTPS o un APK con permiso de cámara. La validación consulta el historial guardado en este teléfono; no hay sincronización entre dispositivos.</p>
+<div id="reader"></div><div class="actions" style="margin-top:10px"><button id="start">ACTIVAR CÁMARA</button><button class="alt" id="stop" disabled>DETENER</button></div>
+<div class="result" id="scanResult">Esperando un código QR o de barras…</div>
+</section>
+<section class="panel" id="historyPanel" hidden><h2>Boletos guardados en este teléfono</h2><div id="history"></div><div class="actions" style="margin-top:12px"><button class="alt" id="clear">BORRAR HISTORIAL LOCAL</button></div><p class="note">No se puede recuperar el historial si borras los datos del navegador o desinstalas la aplicación sin respaldo.</p></section>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script>
+const $=id=>document.getElementById(id), KEY='ztickets_items_v2', SEQ='ztickets_seq_v2';
+let items=JSON.parse(localStorage.getItem(KEY)||'[]'), seq=Number(localStorage.getItem(SEQ)||0), current=null, scanner=null;
+$('date').value=new Date().toISOString().slice(0,10);
+function persist(){localStorage.setItem(KEY,JSON.stringify(items));localStorage.setItem(SEQ,String(seq))}
+function folio(){seq++;persist();return 'ZT-'+String(seq).padStart(6,'0')}
+function payload(t){return JSON.stringify({app:'Z TICKETS',folio:t.folio,event:t.event,date:t.date,type:t.type})}
+function draw(t){
+ $('outEvent').textContent=t.event;$('outMeta').textContent=[t.type,t.date,t.place].filter(Boolean).join(' · ');$('outFolio').textContent=t.folio;$('outHolder').textContent=t.holder?'Titular: '+t.holder:'';
+ $('qrcode').innerHTML='';
+ if(window.QRCode)new QRCode($('qrcode'),{text:payload(t),width:150,height:150,colorDark:'#111',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M});
+ else $('qrcode').textContent='QR: conecta a internet para cargar el generador';
+ if(window.JsBarcode)JsBarcode('#barcode',t.folio,{format:'CODE128',lineColor:'#111',width:2,height:55,displayValue:true,fontSize:12,margin:4});
+ else $('barcode').outerHTML='<p>Code 128 requiere cargar JsBarcode</p>';
+}
+function generate(fresh=true){
+ if(fresh||!current)current=folio();
+ let t={folio:current,event:$('event').value.trim()||'EVENTO',holder:$('holder').value.trim(),date:$('date').value,place:$('place').value.trim(),type:$('type').value.trim()||'GENERAL',created:new Date().toISOString(),used:false};
+ const i=items.findIndex(x=>x.folio===current);if(i<0)items.push(t);else items[i]=t;persist();draw(t);
+ $('genStatus').textContent='Boleto '+t.folio+' guardado en este dispositivo.';return t;
+}
+$('generate').onclick=()=>generate(false);$('new').onclick=()=>generate(true);$('print').onclick=()=>window.print();
+$('export').onclick=()=>{const b=new Blob([JSON.stringify({sequence:seq,tickets:items},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='z-tickets-respaldo.json';a.click();URL.revokeObjectURL(a.href)};
+function show(which){['formPanel','scanPanel','historyPanel'].forEach(id=>$(id).hidden=id!==which);if(which==='historyPanel')renderHistory()}
+$('goCreate').onclick=()=>show('formPanel');$('goScan').onclick=()=>show('scanPanel');$('goHistory').onclick=()=>show('historyPanel');
+function renderHistory(){if(!items.length){$('history').textContent='Todavía no hay boletos guardados.';return}
+ $('history').innerHTML='<table><thead><tr><th>Folio</th><th>Evento</th><th>Estado</th></tr></thead><tbody>'+items.slice().reverse().map(t=>'<tr><td>'+t.folio+'</td><td>'+escapeHtml(t.event)+'</td><td>'+(t.used?'UTILIZADO':'DISPONIBLE')+'</td></tr>').join('')+'</tbody></table>'}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+$('clear').onclick=()=>{if(confirm('¿Borrar todos los boletos de este teléfono?')){items=[];persist();renderHistory()}}
+function validate(raw){let code=raw, parsed=null;try{parsed=JSON.parse(raw);code=parsed.folio||raw}catch(e){}
+ let t=items.find(x=>x.folio===code);
+ if(!t){$('scanResult').textContent='NO ENCONTRADO\\nEl código '+code+' no aparece en el historial de este teléfono.';return}
+ if(t.used){$('scanResult').textContent='BOLETO YA UTILIZADO\\n'+t.folio+' · '+t.event;return}
+ t.used=true;t.usedAt=new Date().toISOString();persist();$('scanResult').textContent='BOLETO VÁLIDO · ACCESO REGISTRADO\\n'+t.folio+' · '+t.event+'\\nTitular: '+(t.holder||'No indicado')+'\\nFecha: '+(t.date||'No indicada'); 
+}
+async function start(){if(!window.Html5Qrcode){$('scanResult').textContent='No se cargó el lector. Comprueba la conexión a internet.';return}
+ try{scanner=new Html5Qrcode('reader');await scanner.start({facingMode:'environment'},{fps:10,qrbox:{width:250,height:180},formatsToSupport:[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16] },txt=>{validate(txt);stop()},()=>{});$('start').disabled=true;$('stop').disabled=false;$('scanResult').textContent='Cámara activa. Enfoca el código.'}
+ catch(e){$('scanResult').textContent='No se pudo abrir la cámara: '+e+'. Revisa permisos y HTTPS.'}}
+async function stop(){if(scanner){try{await scanner.stop();scanner.clear()}catch(e){}scanner=null}$('start').disabled=false;$('stop').disabled=true}
+$('start').onclick=start;$('stop').onclick=stop;
+generate(true);
+</script></body></html>
